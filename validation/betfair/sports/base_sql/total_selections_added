@@ -1,0 +1,21 @@
+"""
+                        WITH base AS (
+                        Select event_date, ga.account_id 
+                        from omni_ga.vw_bf_events ga
+                        left join omni.dim_account AS dim_account
+                        on dim_account.account_id = ga.account_id
+                        where event_date BETWEEN """ + start_date_sql + """ AND """ + end_date_sql + """
+                        and ga.account_id > 0
+                        and event_name = 'added_selection'
+                        and event_param_vertical IN ('rebuild_sportsbook', 'sportsbook')
+                        and dim_account.account_type <> 'Internal - Test_Acct'
+                        and dim_account.elite_flag = 'N'
+                        and dim_account.residence_country IN ('Ireland', 'United Kingdom')
+                        and dim_account.account_type IS NOT NULL
+                        )
+                        
+                        SELECT event_date as date, count(event_date) as metric_value
+                        from base
+                        group by event_date
+                        order by event_date asc
+"""
