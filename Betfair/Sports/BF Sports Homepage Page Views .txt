@@ -1,0 +1,25 @@
+WITH base AS (
+SELECT
+    (DATE(cust_bi_ext_vw_events.event_timestamp )) AS "dt",
+    dim_account.account_id  AS "account_id",
+    COUNT(DISTINCT ( cust_bi_ext_vw_events.user_pseudo_id || '|' || cust_bi_ext_vw_events.event_param_ga_session_id ||  '|' || cust_bi_ext_vw_events.event_param_ga_session_number || '|' || 'BF' || '|' || CAST(cust_bi_ext_vw_events.event_timestamp AS varchar) ) ) AS "page_views"
+FROM
+    omni_ga.vw_bf_events
+     AS cust_bi_ext_vw_events
+LEFT JOIN omni.dim_account  AS dim_account ON dim_account.account_id = cust_bi_ext_vw_events.account_id
+      AND 'BF' = dim_account.brand_nk
+      AND ('BF' = 'PP' OR 'BF' = 'BF')
+      AND cust_bi_ext_vw_events.account_id > 0
+WHERE ((( cust_bi_ext_vw_events.event_timestamp  ) >= ((DATEADD(day,-3, DATE_TRUNC('day',GETDATE()) )))							---Specify time period
+AND ( cust_bi_ext_vw_events.event_timestamp  ) < ((DATEADD(day,3, DATEADD(day,-3, DATE_TRUNC('day',GETDATE()) ) ))))) 
+AND ((cust_bi_ext_vw_events.event_name ) = 'page_view' 													---Specify page view event
+AND (cust_bi_ext_vw_events.event_param_page_location ) = 'https://www.betfair.com/betting/') 								---Specify Betfair Sports homepage
+AND ((cust_bi_ext_vw_events.event_param_vertical ) = 'rebuild_sportsbook' 										---Specify Betfair Sports vertical
+AND ((dim_account.account_id ) > 0 															---Limit to logged-in users
+AND (dim_account.residence_country ) IN ('Ireland', 'United Kingdom')))											---Limit to UK&I
+GROUP BY 1, 2
+ORDER BY 3 DESC
+)
+
+Select *
+from base

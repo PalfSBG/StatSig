@@ -1,0 +1,38 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Sportsbook Total Bets Placed
+--Author: Jack Mac Cionnaith
+--Date: 08/11/24
+---------------------------------------
+
+INSERT INTO {target_dataset}.{experiment_metric_values}
+(                                                      
+    account_id,
+    metric_id,
+    metric_date,
+    metric_value
+)
+
+select
+    faad.account_sk as account_id,
+    met.metric_id,
+    dim_date.date as metric_date,
+    sum(faad.placed_bet_count) as metric_value
+    
+from {faad_dataset}.fact_account_activity_daily faad
+LEFT JOIN
+    omni.dim_account AS dim_account ON faad.account_sk = dim_account.account_sk    
+LEFT JOIN
+    omni.dim_date AS dim_date ON faad.date_sk = dim_date.date_sk
+LEFT JOIN
+    omni.dim_product AS dim_product ON faad.product_sk = dim_product.product_sk
+INNER JOIN {target_dataset}.{experiment_metrics} AS met
+    ON
+    '{metric_name}' = met.metric_name
+    
+where dim_date.date BETWEEN '{from_date}' AND '{to_date}'
+    AND product_group = 'Sports Risk'                                                                   --Limit to eGaming product group (Looker refers to created product.heirarchy table)
+    AND product IN ('Sportsbook','Virtual Sports','Lotteries')                   --includes certain products from that group
+    
+group by 1,2,3
+;

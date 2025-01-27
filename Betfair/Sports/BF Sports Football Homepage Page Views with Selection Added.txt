@@ -1,0 +1,86 @@
+
+---------------------------------------
+--Product Metric Framework
+--Metric: Total Betfair Sports Football Homepage Page Views with a Selection Added
+--Author: Mark Palfreeman
+--Date: 18/10/24
+---------------------------------------
+
+--Get all page views
+WITH pv_base as (
+SELECT  DATE_TRUNC('day', cust_bi_ext_vw_events.event_timestamp) as dt,
+        dim_account.account_sk,
+        cust_bi_ext_vw_events.event_timestamp,
+        (cust_bi_ext_vw_events.user_pseudo_id   ||  cust_bi_ext_vw_events.event_param_ga_session_id   || ('BF')) AS "session_id",
+        cust_bi_ext_vw_events.event_param_page_location AS "page_name",
+        cust_bi_ext_vw_events.event_param_ga_session_number
+FROM omni_ga.vw_bf_events AS cust_bi_ext_vw_events
+LEFT JOIN omni.dim_account  AS dim_account ON dim_account.account_id = cust_bi_ext_vw_events.account_id
+      AND 'BF' = dim_account.brand_nk
+WHERE cust_bi_ext_vw_events.event_timestamp >= (DATEADD(day,-7, DATE_TRUNC('day',GETDATE()))) 
+AND cust_bi_ext_vw_events.event_timestamp < (DATEADD(day,2, DATEADD(day,-2, DATE_TRUNC('day',GETDATE())))) 
+AND cust_bi_ext_vw_events.event_name = 'page_view'                                                                      ---Specify Page View event
+AND cust_bi_ext_vw_events.account_id > 0                                                                                ---Specify logged-in users
+AND cust_bi_ext_vw_events.event_param_vertical = 'rebuild_sportsbook'                                                   ---Isolate Betfair Sportsbook
+AND dim_account.residence_country IN ('Ireland', 'United Kingdom')                                                      ---Isolate UK & Ireland
+ORDER BY dt, account_sk, event_timestamp asc 
+),
+
+--Use LEAD function to add subsequent page view effectively creating start/end timestamp
+add_npv AS (
+Select  dt, account_sk, event_timestamp, session_id, page_name, event_param_ga_session_number,
+        NVL(lead(event_timestamp) OVER (Partition By dt, account_sk, session_id ORDER BY event_timestamp ASC), dateadd(minute,30,event_timestamp)) as pv_end
+from pv_base
+),
+
+--Get all selections added from the homepage 
+as_base as (
+SELECT  DATE_TRUNC('day', cust_bi_ext_vw_events.event_timestamp) as dt,
+        dim_account.account_sk,
+        cust_bi_ext_vw_events.event_timestamp,
+        (cust_bi_ext_vw_events.user_pseudo_id   ||  cust_bi_ext_vw_events.event_param_ga_session_id   || ('BF')) AS "session_id",
+        cust_bi_ext_vw_events.event_param_ga_session_number
+FROM omni_ga.vw_bf_events AS cust_bi_ext_vw_events
+LEFT JOIN omni.dim_account  AS dim_account 
+        ON dim_account.account_id = cust_bi_ext_vw_events.account_id
+        AND 'BF' = dim_account.brand_nk
+WHERE cust_bi_ext_vw_events.event_timestamp >= (DATEADD(day,-7, DATE_TRUNC('day',GETDATE()))) 
+AND cust_bi_ext_vw_events.event_timestamp < (DATEADD(day,2, DATEADD(day,-2, DATE_TRUNC('day',GETDATE())))) 
+AND cust_bi_ext_vw_events.event_name = 'added_selection'                                                        ---Specify Add Selection event
+AND cust_bi_ext_vw_events.account_id > 0                                                                        ---Specify logged-in users
+AND cust_bi_ext_vw_events.event_param_vertical = 'rebuild_sportsbook'                                           ---Isolate Betfair Sportsbook
+AND dim_account.residence_country IN ('Ireland', 'United Kingdom')                                              ---Isolate UK & Ireland
+AND (cust_bi_ext_vw_events.event_param_page_location = 'https://www.betfair.com/betting/football/s-1'           ---Specify Betfair Sports Football homepage
+OR cust_bi_ext_vw_events.event_param_page_location = 'https://www.betfair.com/betting/soccer/s-1')              
+ORDER BY dt, account_sk, event_timestamp asc 
+),
+
+selection_added_check AS (
+Select a.dt, a.account_sk, a.event_timestamp, a.session_id, a.pv_end, a.event_param_ga_session_number,
+case when b.dt IS NOT NULL then 1 else 0 end as selection_added_flag
+from add_npv a
+left join as_base b 
+        ON a.dt = b.dt
+        AND a.account_sk = b.account_sk
+        AND b.event_timestamp BETWEEN a.event_timestamp AND pv_end                      ---Check whether the selection was added between start/end of page view
+        AND a.session_id = b.session_id
+        AND a.event_param_ga_session_number = b.event_param_ga_session_number
+WHERE (a.page_name = 'https://www.betfair.com/betting/football/s-1'              ---Specify Betfair Sports Football homepage
+OR a.page_name = 'https://www.betfair.com/betting/soccer/s-1')
+),
+
+distinct_page_views AS (
+Select dt, account_sk, event_timestamp, session_id, pv_end, event_param_ga_session_number, max(selection_added_flag) as selection_added_flag
+from selection_added_check
+group by 1,2,3,4,5,6
+)
+
+Select 
+        account_sk, 
+        'metric_id',
+        dt as metric_date,
+        sum(selection_added_flag) as metric_value
+from distinct_page_views
+GROUP BY
+    account_sk,
+    metric_date

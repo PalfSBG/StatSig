@@ -1,0 +1,33 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Normalised Net Revenue
+--Author: Jack Mac Cionnaith
+--Date: 01/11/24
+---------------------------------------
+
+INSERT INTO {target_dataset}.{experiment_metric_values}
+(                                                      
+    account_id,
+    metric_id,
+    metric_date,
+    metric_value
+)
+
+select
+    a.account_sk as account_id,
+    met.metric_id,
+    trunc(a.placed_datetime) as metric_date,
+    sum(c.exp_revenue) as metric_value
+    
+from {sportsbook_dataset}.vw_bet_summary_reporting_all_verticals a
+    
+left join omni_sportsbook.vw_bet_expected_margin_football_sas_racing c
+    ON a.mult_leg_id = c.mult_leg_id AND a.source = c.source AND a.settled_datetime = c.settled_datetime
+    
+INNER JOIN {target_dataset}.{experiment_metrics} AS met
+    ON
+    '{metric_name}' = met.metric_name
+    
+where a.settled_datetime BETWEEN '{from_date}' AND '{to_date}'
+    
+group by 1,2,3

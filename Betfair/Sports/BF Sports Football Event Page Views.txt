@@ -1,0 +1,38 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Total Betfair Sports Football Event Page Views
+--Author: Jack Mac Cionnaith
+--Date: 01/11/24
+---------------------------------------
+
+INSERT INTO {target_dataset}.{experiment_metric_values}
+(                                                      
+    account_id,
+    metric_id,
+    metric_date,
+    metric_value
+)
+
+SELECT
+    dim_account.account_sk  AS account_id,
+    met.metric_id,
+    cust_bi_ext_vw_events.event_date AS metric_date,
+    COUNT(DISTINCT(cust_bi_ext_vw_events.user_pseudo_id || '|' || cust_bi_ext_vw_events.event_param_ga_session_id ||  '|' || cust_bi_ext_vw_events.event_param_ga_session_number || '|' || 'BF' || '|' || CAST(cust_bi_ext_vw_events.event_timestamp AS varchar))) AS metric_value
+FROM
+    {ga_dataset}.vw_events AS cust_bi_ext_vw_events
+INNER JOIN {omni_dataset}.{dim_account} AS dim_account 
+      ON dim_account.account_id = cust_bi_ext_vw_events.account_id
+     AND dim_account.brand_nk = cust_bi_ext_vw_events.brand
+INNER JOIN {target_dataset}.{experiment_metrics} AS met
+ON
+    '{metric_name}' = met.metric_name
+     
+WHERE cust_bi_ext_vw_events.event_date BETWEEN '{from_date}' AND '{to_date}'                                                                                                                               ---filter on dates where possbile. If not available, filter on the timestamp. DO NOT convert it to date
+AND cust_bi_ext_vw_events.event_name = 'page_view' 												                                                           ---Specify page view event
+AND (
+cust_bi_ext_vw_events.event_param_page_location like '%/football/%/e-%'
+or
+cust_bi_ext_vw_events.event_param_page_location like '%/soccer/%/e-%'
+) 									                                                                                                                                   ---Specify Betfair Sports Football Event Page
+AND cust_bi_ext_vw_events.event_param_vertical = 'rebuild_sportsbook' 										                                                           ---Specify Betfair Sports vertical
+GROUP BY 1, 2, 3;
