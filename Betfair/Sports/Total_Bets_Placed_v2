@@ -1,0 +1,31 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Betfair Sports Total Bets Placed
+--Author: Mark Palfreeman
+--Date: 04/10/24
+---------------------------------------
+
+WITH base AS (
+Select 
+        dim_date.date, 
+        dim_account.account_id, 
+        placed_bet_count
+from omni.fact_account_activity_daily as faad
+LEFT JOIN omni.dim_account AS dim_account
+ON faad.account_sk = dim_account.account_sk
+LEFT JOIN omni.dim_date AS dim_date
+ON faad.date_sk = dim_date.date_sk
+LEFT JOIN omni.dim_product AS dim_product 
+ON faad.product_sk = dim_product.product_sk
+where dim_date.date = sysdate::date -2
+and isnull(dim_account.account_type,'NULL') <> 'Internal - Test_Acct'           --Exclude test accounts
+and isnull(dim_account.elite_flag, 'N') <> 'Y'                                  --Exclude elite accounts
+and residence_country IN ('United Kingdom', 'Ireland')                          --Limit to UK&I customers
+and faad.brand_code = 'BF'                                                      --Limit to Betfair brand
+and dim_product.product_group = 'Sports Risk'                                   --Limit to Sportsbook
+and product NOT IN ('DAB', 'Fantasy Sports', 'Omni Channel', 'Beat_The_Drop')   --Exclude certain products from that group
+)
+
+Select account_id, sum(placed_bet_count) as total_bets_placed
+from base
+group by account_id
