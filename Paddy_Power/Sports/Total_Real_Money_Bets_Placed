@@ -1,0 +1,19 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Paddy Power Sports Total Real Money Bets Placed
+--Author: Mark Palfreeman
+--Date: 04/10/24
+---------------------------------------
+
+WITH base as (
+Select account_id, mult_id, volume_gbp, ticket_stake_gbp
+from omni_sportsbook.vw_bet_summary_reporting_all_verticals
+where placed_datetime > sysdate::date -1
+and brand = 'PP'
+and (volume_gbp - ticket_stake_gbp) > 0.0005
+)
+
+Select account_id, count(distinct mult_id) as bets_placed
+from base
+group by account_id
+;
