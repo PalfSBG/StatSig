@@ -1,0 +1,18 @@
+---------------------------------------
+--Product Metric Framework
+--Metric: Betfair Sports Total Multiples Placed
+--Author: Mark Palfreeman
+--Date: 04/10/24
+---------------------------------------
+
+WITH base as (
+Select account_id, mult_id, volume_gbp, ticket_stake_gbp
+from omni_sportsbook.vw_bet_summary_reporting_all_verticals
+where placed_datetime > sysdate::date -1
+and brand = 'BF'
+and bet_type = 'Multiple'
+limit 1
+)
+
+Select account_id, count(distinct mult_id) as multiple_placed
+from base
