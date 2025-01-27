@@ -1,0 +1,44 @@
+''---------------------------------------
+--Product Metric Framework
+--Metric: Betfair Sports Visits with a Real Money Bet Placed
+--Author: Mark Palfreeman
+--Date: 08/10/24
+---------------------------------------
+
+--Get all sessions with a game launch
+WITH base as (
+select a.account_id, a.event_param_ga_session_id as session_id, min(a.event_timestamp) as session_start, max(a.event_timestamp) as session_end
+from omni_ga.vw_bf_events a
+LEFT JOIN omni.dim_account b 
+ON a.account_id = b.account_id
+where event_date = sysdate::date -1
+and isnull(b.account_type,'NULL') <> 'Internal - Test_Acct'     --Exclude test accounts
+and isnull(b.elite_flag, 'N') <> 'Y'                            --Exclude elite accounts
+and residence_country IN ('United Kingdom', 'Ireland')          --Limit to UK&I customers
+and event_param_vertical = 'rebuild_sportsbook'                 --Limit to Betfair Sports
+and a.account_id IS NOT NULL                                    
+and a.account_id > 0
+group by a.account_id, session_id
+),
+
+--Get related transactional data
+trans_info AS (
+Select a.account_id, session_id, mult_id, volume_gbp, ticket_stake_gbp
+from base a
+left join omni_sportsbook.vw_bet_summary_reporting_all_verticals b
+on a.account_id = b.account_id
+and placed_datetime between session_start and session_end
+where brand = 'BF'                                                      --Specify Betfair Sports
+and (volume_gbp - ticket_stake_gbp) > 0                                 --Filter out free bets
+),
+
+summary AS (
+Select account_id, session_id, count(distinct mult_id) as bets_placed, sum(volume_gbp) as stakes
+from trans_info
+group by account_id, session_id
+)
+
+Select account_id, count(session_id) as visits_w_bet_placed
+from summary
+where bets_placed > 0 
+group by account_id
