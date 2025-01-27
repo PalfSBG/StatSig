@@ -1,0 +1,38 @@
+'---------------------------------------
+--Product Metric Framework
+--Metric: Betfair Sports Total Stakes
+--Author: Mark Palfreeman
+--Date: 04/10/24
+---------------------------------------
+WITH
+    base AS
+    (
+        Select 
+                dim_date.date, 
+                dim_account.account_id, 
+                volume_placed_stake_gbp
+        FROM
+            omni.fact_account_activity_daily AS faad
+        LEFT JOIN
+            omni.dim_account AS dim_account ON faad.account_sk = dim_account.account_sk
+        LEFT JOIN
+            omni.dim_date AS dim_date ON faad.date_sk = dim_date.date_sk
+        LEFT JOIN
+            omni.dim_product AS dim_product ON faad.product_sk = dim_product.product_sk
+        WHERE
+            dim_date.date = SYSDATE::DATE -7
+        AND ISNULL(dim_account.account_type,'NULL') <> 'Internal - Test_Acct'                           --Exclude test accounts
+        AND ISNULL(dim_account.elite_flag, 'N') <> 'Y'                                                  --Exclude elite accounts
+        AND residence_country IN ('United Kingdom','Ireland')                                           --Limit to UK&I customers
+        AND faad.brand_code = 'BF'                                                                      --Limit to Betfair brand
+        AND product_group = 'Sports Risk'                                                               --Limit to Sports Risk product group (Looker refers to created product.heirarchy table)
+        AND product NOT IN ('DAB', 'Fantasy Sports', 'Omni Channel', 'Beat_The_Drop')                   --Exclude certain products from that group
+    )
+    
+SELECT
+    account_id,
+    sum(volume_placed_stake_gbp) as total_stakes
+FROM
+    base
+GROUP BY
+    account_id
