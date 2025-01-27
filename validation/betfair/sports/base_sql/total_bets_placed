@@ -1,0 +1,25 @@
+"""
+                        WITH base AS (
+                        Select  *,
+                                dim_date.date as dt,  
+                                faad.account_sk as account_id,
+                                placed_bet_count as bets_placed
+                        from omni.fact_account_activity_daily faad
+                        LEFT JOIN omni.dim_account AS dim_account 
+                        ON faad.account_sk = dim_account.account_sk
+                        LEFT JOIN omni.dim_date AS dim_date 
+                        ON faad.date_sk = dim_date.date_sk
+                        LEFT JOIN omni.dim_product AS dim_product 
+                        ON faad.product_sk = dim_product.product_sk
+                        where dim_date.date BETWEEN """ + start_date_sql + """ AND """ + end_date_sql + """
+                        AND product_group = 'Sports Risk'                                                                   
+                        AND product IN ('Sportsbook')
+                        and brand_code = 'BF'
+                        and residence_country IN ('United Kingdom','Ireland')
+                        )
+                        
+                        Select dt as date, sum(bets_placed) as metric_value 
+                        from base
+                        group by dt
+                        order by dt asc
+"""
