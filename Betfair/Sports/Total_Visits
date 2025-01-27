@@ -1,0 +1,28 @@
+'---------------------------------------
+--Product Metric Framework
+--Metric: Betfair Sports Total Visits
+--Author: Mark Palfreeman
+--Date: 08/10/24
+---------------------------------------
+
+SELECT
+    cust_bi_ext_vw_events.account_id  AS "account_id",
+    COUNT(DISTINCT cust_bi_ext_vw_events.user_pseudo_id   ||  cust_bi_ext_vw_events.event_param_ga_session_id   || (
+      'BF'
+     ) ) AS "total_visits"
+FROM
+    omni_ga.vw_bf_events
+     AS cust_bi_ext_vw_events
+LEFT JOIN omni.dim_account AS dim_account ON dim_account.account_id = cust_bi_ext_vw_events.account_id
+      AND 'BF' = dim_account.brand_nk
+      AND ('BF' = 'PP' OR 'BF' = 'BF')
+WHERE ((( cust_bi_ext_vw_events.event_timestamp  ) >= ((DATEADD(day,-1, DATE_TRUNC('day',GETDATE()) ))) 
+AND ( cust_bi_ext_vw_events.event_timestamp  ) < ((DATEADD(day,2, DATEADD(day,-1, DATE_TRUNC('day',GETDATE()) ) ))))) 
+AND ((cust_bi_ext_vw_events.event_param_vertical ) IN ('rebuild_sportsbook', 'sportsbook') AND (dim_account.account_type ) <> 'Internal - Test_Acct') 
+AND ((dim_account.elite_flag ) = 'N' 
+AND ((dim_account.residence_country ) IN ('Ireland', 'United Kingdom') 
+AND (dim_account.account_type ) IS NOT NULL))
+GROUP BY
+    1
+ORDER BY
+    2 DESC
